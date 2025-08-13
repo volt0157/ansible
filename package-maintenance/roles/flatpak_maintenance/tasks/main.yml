@@ -1,0 +1,19 @@
+---
+- name: Flatpak maintenance start
+  debug:
+    msg: "Starting Flatpak maintenance"
+
+- name: Update Flatpak applications
+  command: flatpak update -y --noninteractive
+  register: flatpak_update
+  changed_when: "'Nothing to do' not in flatpak_update.stdout"
+
+- name: Remove unused Flatpak runtimes
+  command: flatpak uninstall --unused -y --noninteractive
+  register: flatpak_cleanup
+  changed_when: "'Nothing unused to uninstall' not in flatpak_cleanup.stdout"
+  failed_when: false
+
+- name: Flatpak maintenance complete
+  debug:
+    msg: "Flatpak maintenance completed"

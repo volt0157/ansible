@@ -1,0 +1,27 @@
+---
+- name: Package Manager Maintenance
+  hosts: localhost
+  gather_facts: yes
+  become: yes
+  
+  pre_tasks:
+    - name: Verify Ubuntu system
+      assert:
+        that: ansible_distribution == "Ubuntu"
+        fail_msg: "This playbook is for Ubuntu only"
+        success_msg: "Running on Ubuntu {{ ansible_distribution_version }}"
+    
+    - name: Display start message
+      debug:
+        msg: "Starting package maintenance at {{ ansible_date_time.iso8601 }}"
+  
+  roles:
+    - role: apt_maintenance
+      tags: [apt]
+    - role: flatpak_maintenance  
+      tags: [flatpak]
+  
+  post_tasks:
+    - name: Display completion message
+      debug:
+        msg: "Package maintenance completed at {{ ansible_date_time.iso8601 }}"

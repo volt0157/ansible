@@ -1,0 +1,33 @@
+---
+- name: APT maintenance start
+  debug:
+    msg: "Starting APT maintenance"
+
+- name: Update APT cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Upgrade packages
+  apt:
+    upgrade: safe
+  register: apt_upgrade
+
+- name: Show upgraded packages count
+  debug:
+    msg: "Upgraded {{ apt_upgrade.stdout_lines | default([]) | length }} packages"
+  when: apt_upgrade.changed
+
+- name: Remove unnecessary packages
+  apt:
+    autoremove: yes
+    purge: yes
+  register: apt_autoremove
+
+- name: Clean APT cache
+  apt:
+    autoclean: yes
+
+- name: APT maintenance complete
+  debug:
+    msg: "APT maintenance completed"
