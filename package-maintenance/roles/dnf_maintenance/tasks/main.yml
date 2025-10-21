@@ -25,8 +25,12 @@
   register: dnf_autoremove
 
 - name: Clean DNF cache
-  command: dnf clean all
-  changed_when: true
+  dnf:
+    name: "*"
+    state: latest
+    update_cache: yes
+    clean_cache: yes
+  changed_when: false
 
 - name: DNF maintenance complete
   debug:
