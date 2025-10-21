@@ -13,10 +13,17 @@
     msg: "{{ snap_refresh.stdout_lines }}"
   when: snap_refresh.changed
 
+- name: Get list of disabled snaps
+  shell: snap list --all | awk '/disabled/{print $1, $3}'
+  register: snap_disabled
+  changed_when: false
+  failed_when: false
+
 - name: Remove disabled snaps
-  shell: snap list --all | awk '/disabled/{print $1, $3}' | while read snapname revision; do snap remove "$snapname" --revision="$revision"; done
+  command: snap remove "{{ item.split()[0] }}" --revision="{{ item.split()[1] }}"
+  loop: "{{ snap_disabled.stdout_lines }}"
+  when: snap_disabled.stdout_lines | length > 0
   register: snap_cleanup
-  changed_when: snap_cleanup.stdout != ""
   failed_when: false
 
 - name: Snap maintenance complete
