@@ -10,12 +10,12 @@
 
 - name: Upgrade packages
   apt:
-    upgrade: safe
+    upgrade: dist
   register: apt_upgrade
 
-- name: Show upgraded packages count
+- name: Show upgraded packages status
   debug:
-    msg: "Upgraded {{ apt_upgrade.stdout_lines | default([]) | length }} packages"
+    msg: "APT packages upgraded"
   when: apt_upgrade.changed
 
 - name: Remove unnecessary packages
