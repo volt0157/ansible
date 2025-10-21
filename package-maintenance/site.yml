@@ -13,9 +13,13 @@
       debug:
         msg: "Starting package maintenance at {{ ansible_date_time.iso8601 }}"
     
+    - name: Initialize detected package managers list
+      set_fact:
+        detected_pkg_managers: []
+    
     - name: Determine package manager
       set_fact:
-        detected_pkg_managers: "{{ detected_pkg_managers | default([]) + [item.manager] }}"
+        detected_pkg_managers: "{{ detected_pkg_managers + [item.manager] }}"
       when: item.condition
       loop:
         - { manager: 'apt', condition: "{{ ansible_pkg_mgr == 'apt' }}" }
@@ -41,23 +45,23 @@
   roles:
     # Native package managers
     - role: apt_maintenance
-      when: "'apt' in detected_pkg_managers | default([])"
+      when: "'apt' in detected_pkg_managers"
       tags: [apt, native]
     
     - role: dnf_maintenance
-      when: "'dnf' in detected_pkg_managers | default([])"
+      when: "'dnf' in detected_pkg_managers"
       tags: [dnf, native]
     
     - role: yum_maintenance
-      when: "'yum' in detected_pkg_managers | default([])"
+      when: "'yum' in detected_pkg_managers"
       tags: [yum, native]
     
     - role: zypper_maintenance
-      when: "'zypper' in detected_pkg_managers | default([])"
+      when: "'zypper' in detected_pkg_managers"
       tags: [zypper, native]
     
     - role: pacman_maintenance
-      when: "'pacman' in detected_pkg_managers | default([])"
+      when: "'pacman' in detected_pkg_managers"
       tags: [pacman, native]
     
     # Universal package managers
