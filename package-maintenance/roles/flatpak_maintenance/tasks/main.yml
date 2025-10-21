@@ -8,11 +8,21 @@
   register: flatpak_update
   changed_when: "'Nothing to do' not in flatpak_update.stdout"
 
+- name: Show flatpak update status
+  debug:
+    msg: "{{ flatpak_update.stdout_lines }}"
+  when: flatpak_update.changed
+
 - name: Remove unused Flatpak runtimes
   command: flatpak uninstall --unused -y --noninteractive
   register: flatpak_cleanup
   changed_when: "'Nothing unused to uninstall' not in flatpak_cleanup.stdout"
   failed_when: false
+
+- name: Show flatpak cleanup status
+  debug:
+    msg: "Removed unused Flatpak runtimes"
+  when: flatpak_cleanup.changed
 
 - name: Flatpak maintenance complete
   debug:

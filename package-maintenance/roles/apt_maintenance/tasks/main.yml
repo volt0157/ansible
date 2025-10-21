@@ -1,7 +1,7 @@
 ---
 - name: APT maintenance start
   debug:
-    msg: "Starting APT maintenance"
+    msg: "Starting APT maintenance (Debian/Ubuntu/Mint)"
 
 - name: Update APT cache
   apt:

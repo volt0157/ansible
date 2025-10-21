@@ -1,0 +1,33 @@
+---
+- name: DNF maintenance start
+  debug:
+    msg: "Starting DNF maintenance (Fedora/RHEL 8+/CentOS 8+)"
+
+- name: Update DNF cache
+  dnf:
+    update_cache: yes
+  register: dnf_cache
+
+- name: Upgrade all packages
+  dnf:
+    name: "*"
+    state: latest
+  register: dnf_upgrade
+
+- name: Show upgraded packages count
+  debug:
+    msg: "Upgraded packages via DNF"
+  when: dnf_upgrade.changed
+
+- name: Remove unnecessary packages (autoremove)
+  dnf:
+    autoremove: yes
+  register: dnf_autoremove
+
+- name: Clean DNF cache
+  command: dnf clean all
+  changed_when: true
+
+- name: DNF maintenance complete
+  debug:
+    msg: "DNF maintenance completed"

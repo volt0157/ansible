@@ -1,27 +1,83 @@
 ---
-- name: Package Manager Maintenance
-  hosts: localhost
+- name: Universal Package Manager Maintenance
+  hosts: all
   gather_facts: yes
   become: yes
   
   pre_tasks:
-    - name: Verify Ubuntu system
-      assert:
-        that: ansible_distribution == "Ubuntu"
-        fail_msg: "This playbook is for Ubuntu only"
-        success_msg: "Running on Ubuntu {{ ansible_distribution_version }}"
+    - name: Display system information
+      debug:
+        msg: "Detected {{ ansible_distribution }} {{ ansible_distribution_version }} ({{ ansible_os_family }})"
     
     - name: Display start message
       debug:
         msg: "Starting package maintenance at {{ ansible_date_time.iso8601 }}"
+    
+    - name: Determine package manager
+      set_fact:
+        detected_pkg_managers: "{{ detected_pkg_managers | default([]) + [item.manager] }}"
+      when: item.condition
+      loop:
+        - { manager: 'apt', condition: "{{ ansible_pkg_mgr == 'apt' }}" }
+        - { manager: 'dnf', condition: "{{ ansible_pkg_mgr == 'dnf' }}" }
+        - { manager: 'yum', condition: "{{ ansible_pkg_mgr == 'yum' }}" }
+        - { manager: 'zypper', condition: "{{ ansible_pkg_mgr == 'zypper' }}" }
+        - { manager: 'pacman', condition: "{{ ansible_pkg_mgr == 'pacman' }}" }
+      loop_control:
+        label: "{{ item.manager }}"
+    
+    - name: Check for Flatpak
+      command: which flatpak
+      register: flatpak_check
+      failed_when: false
+      changed_when: false
+    
+    - name: Check for Snap
+      command: which snap
+      register: snap_check
+      failed_when: false
+      changed_when: false
   
   roles:
+    # Native package managers
     - role: apt_maintenance
-      tags: [apt]
-    - role: flatpak_maintenance  
-      tags: [flatpak]
+      when: "'apt' in detected_pkg_managers | default([])"
+      tags: [apt, native]
+    
+    - role: dnf_maintenance
+      when: "'dnf' in detected_pkg_managers | default([])"
+      tags: [dnf, native]
+    
+    - role: yum_maintenance
+      when: "'yum' in detected_pkg_managers | default([])"
+      tags: [yum, native]
+    
+    - role: zypper_maintenance
+      when: "'zypper' in detected_pkg_managers | default([])"
+      tags: [zypper, native]
+    
+    - role: pacman_maintenance
+      when: "'pacman' in detected_pkg_managers | default([])"
+      tags: [pacman, native]
+    
+    # Universal package managers
+    - role: flatpak_maintenance
+      when: flatpak_check.rc == 0
+      tags: [flatpak, universal]
+    
+    - role: snap_maintenance
+      when: snap_check.rc == 0
+      tags: [snap, universal]
   
   post_tasks:
     - name: Display completion message
       debug:
         msg: "Package maintenance completed at {{ ansible_date_time.iso8601 }}"
+    
+    - name: Display maintenance summary
+      debug:
+        msg: 
+          - "Maintained package managers:"
+          - "  Native: {{ detected_pkg_managers | default(['none']) | join(', ') }}"
+          - "  Flatpak: {{ 'yes' if flatpak_check.rc == 0 else 'no' }}"
+          - "  Snap: {{ 'yes' if snap_check.rc == 0 else 'no' }}"

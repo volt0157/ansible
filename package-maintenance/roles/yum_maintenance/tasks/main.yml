@@ -1,0 +1,33 @@
+---
+- name: YUM maintenance start
+  debug:
+    msg: "Starting YUM maintenance (RHEL/CentOS 7)"
+
+- name: Update YUM cache
+  yum:
+    update_cache: yes
+  register: yum_cache
+
+- name: Upgrade all packages
+  yum:
+    name: "*"
+    state: latest
+  register: yum_upgrade
+
+- name: Show upgraded packages count
+  debug:
+    msg: "Upgraded packages via YUM"
+  when: yum_upgrade.changed
+
+- name: Remove unnecessary packages (autoremove)
+  command: yum autoremove -y
+  register: yum_autoremove
+  changed_when: "'Nothing to do' not in yum_autoremove.stdout"
+
+- name: Clean YUM cache
+  command: yum clean all
+  changed_when: true
+
+- name: YUM maintenance complete
+  debug:
+    msg: "YUM maintenance completed"

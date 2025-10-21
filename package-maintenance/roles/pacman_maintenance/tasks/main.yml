@@ -1,0 +1,36 @@
+---
+- name: Pacman maintenance start
+  debug:
+    msg: "Starting Pacman maintenance (Arch Linux/Manjaro)"
+
+- name: Update package database and upgrade all packages
+  pacman:
+    update_cache: yes
+    upgrade: yes
+  register: pacman_upgrade
+
+- name: Show upgraded packages count
+  debug:
+    msg: "Upgraded packages via Pacman"
+  when: pacman_upgrade.changed
+
+- name: Remove orphaned packages
+  command: pacman -Rns $(pacman -Qtdq) --noconfirm
+  register: pacman_autoremove
+  changed_when: pacman_autoremove.rc == 0
+  failed_when: false
+
+- name: Clean package cache (keep latest 3 versions)
+  command: paccache -rk3
+  register: pacman_cache_clean
+  changed_when: true
+  failed_when: false
+
+- name: Clean uninstalled package cache
+  command: paccache -ruk0
+  changed_when: true
+  failed_when: false
+
+- name: Pacman maintenance complete
+  debug:
+    msg: "Pacman maintenance completed"

@@ -4,3 +4,20 @@ all:
     localhost:
       ansible_connection: local
       ansible_python_interpreter: "{{ ansible_playbook_python }}"
+  
+  children:
+    # You can add more hosts here for remote management
+    ubuntu_servers:
+      hosts:
+        # ubuntu-server-01:
+        #   ansible_host: 192.168.1.10
+    
+    fedora_servers:
+      hosts:
+        # fedora-server-01:
+        #   ansible_host: 192.168.1.20
+    
+    arch_servers:
+      hosts:
+        # arch-server-01:
+        #   ansible_host: 192.168.1.30
