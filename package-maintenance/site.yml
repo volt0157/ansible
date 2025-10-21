@@ -17,18 +17,35 @@
       set_fact:
         detected_pkg_managers: []
     
-    - name: Determine package manager
+    - name: Detect APT
       set_fact:
-        detected_pkg_managers: "{{ detected_pkg_managers + [item.manager] }}"
-      when: item.condition
-      loop:
-        - { manager: 'apt', condition: "{{ ansible_pkg_mgr == 'apt' }}" }
-        - { manager: 'dnf', condition: "{{ ansible_pkg_mgr == 'dnf' }}" }
-        - { manager: 'yum', condition: "{{ ansible_pkg_mgr == 'yum' }}" }
-        - { manager: 'zypper', condition: "{{ ansible_pkg_mgr == 'zypper' }}" }
-        - { manager: 'pacman', condition: "{{ ansible_pkg_mgr == 'pacman' }}" }
-      loop_control:
-        label: "{{ item.manager }}"
+        detected_pkg_managers: "{{ detected_pkg_managers + ['apt'] }}"
+      when: ansible_os_family == 'Debian'
+    
+    - name: Detect DNF
+      set_fact:
+        detected_pkg_managers: "{{ detected_pkg_managers + ['dnf'] }}"
+      when: ansible_os_family == 'RedHat' and ansible_distribution_major_version|int >= 8
+    
+    - name: Detect DNF for Fedora
+      set_fact:
+        detected_pkg_managers: "{{ detected_pkg_managers + ['dnf'] }}"
+      when: ansible_distribution == 'Fedora'
+    
+    - name: Detect YUM
+      set_fact:
+        detected_pkg_managers: "{{ detected_pkg_managers + ['yum'] }}"
+      when: ansible_os_family == 'RedHat' and ansible_distribution_major_version|int <= 7
+    
+    - name: Detect Zypper
+      set_fact:
+        detected_pkg_managers: "{{ detected_pkg_managers + ['zypper'] }}"
+      when: ansible_os_family == 'Suse'
+    
+    - name: Detect Pacman
+      set_fact:
+        detected_pkg_managers: "{{ detected_pkg_managers + ['pacman'] }}"
+      when: ansible_os_family == 'Archlinux'
     
     - name: Check for Flatpak
       command: which flatpak
@@ -82,6 +99,6 @@
       debug:
         msg: 
           - "Maintained package managers:"
-          - "  Native: {{ detected_pkg_managers | default(['none']) | join(', ') }}"
+          - "  Native: {{ detected_pkg_managers | join(', ') if detected_pkg_managers | length > 0 else 'none' }}"
           - "  Flatpak: {{ 'yes' if flatpak_check.rc == 0 else 'no' }}"
           - "  Snap: {{ 'yes' if snap_check.rc == 0 else 'no' }}"
