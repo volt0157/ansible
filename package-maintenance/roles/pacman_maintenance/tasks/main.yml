@@ -14,20 +14,33 @@
     msg: "Upgraded packages via Pacman"
   when: pacman_upgrade.changed
 
+- name: Get list of orphaned packages
+  command: pacman -Qtdq
+  register: pacman_orphans
+  changed_when: false
+  failed_when: false
+
 - name: Remove orphaned packages
-  command: pacman -Rns $(pacman -Qtdq) --noconfirm
+  command: pacman -Rns --noconfirm {{ pacman_orphans.stdout_lines | join(' ') }}
+  when: pacman_orphans.rc == 0 and pacman_orphans.stdout_lines | length > 0
   register: pacman_autoremove
-  changed_when: pacman_autoremove.rc == 0
+
+- name: Check if paccache is available
+  command: which paccache
+  register: paccache_check
+  changed_when: false
   failed_when: false
 
 - name: Clean package cache (keep latest 3 versions)
   command: paccache -rk3
+  when: paccache_check.rc == 0
   register: pacman_cache_clean
   changed_when: true
   failed_when: false
 
 - name: Clean uninstalled package cache
   command: paccache -ruk0
+  when: paccache_check.rc == 0
   changed_when: true
   failed_when: false
 
