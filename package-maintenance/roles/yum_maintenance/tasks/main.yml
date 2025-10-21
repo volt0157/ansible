@@ -20,13 +20,16 @@
   when: yum_upgrade.changed
 
 - name: Remove unnecessary packages (autoremove)
-  command: yum autoremove -y
+  yum:
+    autoremove: yes
   register: yum_autoremove
-  changed_when: "'Nothing to do' not in yum_autoremove.stdout"
 
 - name: Clean YUM cache
-  command: yum clean all
-  changed_when: true
+  yum:
+    name: "*"
+    state: latest
+    update_cache: yes
+  changed_when: false
 
 - name: YUM maintenance complete
   debug:
