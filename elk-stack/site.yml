@@ -1,0 +1,146 @@
+---
+###############################################################################
+# ELK Stack Deployment Playbook
+#
+# This playbook deploys a complete ELK (Elasticsearch, Logstash, Kibana) Stack
+# on RHEL-based systems using tested and verified installation procedures.
+#
+# Supported Systems:
+#   - Fedora 38+
+#   - RHEL 8+
+#   - CentOS Stream 8+
+#   - Rocky Linux 8+
+#   - AlmaLinux 8+
+#
+# Based on: Tested manual installation documented in ELK_INSTALLATION_LOG.md
+###############################################################################
+
+- name: Deploy ELK Stack on RHEL-based Systems
+  hosts: elk_servers
+  become: yes
+  gather_facts: yes
+
+  pre_tasks:
+    - name: Display system information
+      debug:
+        msg:
+          - "═══════════════════════════════════════════════════════════"
+          - "  ELK Stack Installation Starting"
+          - "═══════════════════════════════════════════════════════════"
+          - "Host: {{ inventory_hostname }}"
+          - "OS: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+          - "Kernel: {{ ansible_kernel }}"
+          - "Architecture: {{ ansible_architecture }}"
+          - "Total RAM: {{ ansible_memtotal_mb }} MB"
+          - "Available RAM: {{ ansible_memory_mb.real.free }} MB"
+          - "Total Disk: {{ ansible_mounts[0].size_total | human_readable }}"
+          - "Available Disk: {{ ansible_mounts[0].size_available | human_readable }}"
+          - "═══════════════════════════════════════════════════════════"
+      tags: always
+
+    - name: Assert minimum system requirements
+      assert:
+        that:
+          - ansible_memtotal_mb >= 2048
+          - ansible_os_family == "RedHat"
+        fail_msg: |
+          System does not meet minimum requirements:
+          - Minimum 2GB RAM required (found: {{ ansible_memtotal_mb }} MB)
+          - RHEL-based distribution required (found: {{ ansible_os_family }})
+        success_msg: "System requirements check passed"
+      tags: always
+
+    - name: Create credentials directory
+      file:
+        path: "{{ credentials_dir }}"
+        state: directory
+        mode: '0700'
+        owner: root
+        group: root
+      tags: always
+
+  roles:
+    - role: java_install
+      tags: java
+
+    - role: elasticsearch
+      tags: elasticsearch
+
+    - role: kibana
+      tags: kibana
+
+    - role: logstash
+      tags: logstash
+
+    - role: credentials_management
+      tags: credentials
+
+  post_tasks:
+    - name: Verify all ELK services are running
+      systemd:
+        name: "{{ item }}"
+      register: service_status
+      loop:
+        - elasticsearch
+        - kibana
+        - logstash
+      tags: verify
+
+    - name: Display installation completion summary
+      debug:
+        msg:
+          - ""
+          - "╔══════════════════════════════════════════════════════════════════════════════╗"
+          - "║                                                                              ║"
+          - "║                    ELK STACK INSTALLATION COMPLETE!                          ║"
+          - "║                                                                              ║"
+          - "╚══════════════════════════════════════════════════════════════════════════════╝"
+          - ""
+          - "┌──────────────────────────────────────────────────────────────────────────────┐"
+          - "│ SERVICE ENDPOINTS                                                            │"
+          - "└──────────────────────────────────────────────────────────────────────────────┘"
+          - "  Elasticsearch: https://localhost:{{ elasticsearch_port }}"
+          - "  Kibana:        http://localhost:{{ kibana_port }}"
+          - "  Logstash:      Ready for pipeline configuration"
+          - ""
+          - "┌──────────────────────────────────────────────────────────────────────────────┐"
+          - "│ INSTALLED VERSIONS                                                           │"
+          - "└──────────────────────────────────────────────────────────────────────────────┘"
+          - "  ELK Stack: {{ elastic_version }}"
+          - "  Java: OpenJDK 21"
+          - ""
+          - "┌──────────────────────────────────────────────────────────────────────────────┐"
+          - "│ SERVICE STATUS                                                               │"
+          - "└──────────────────────────────────────────────────────────────────────────────┘"
+          - "  ✓ Elasticsearch: {{ 'Active' if service_status.results[0].status.ActiveState == 'active' else 'Inactive' }}"
+          - "  ✓ Kibana:        {{ 'Active' if service_status.results[1].status.ActiveState == 'active' else 'Inactive' }}"
+          - "  ✓ Logstash:      {{ 'Active' if service_status.results[2].status.ActiveState == 'active' else 'Inactive' }}"
+          - ""
+          - "┌──────────────────────────────────────────────────────────────────────────────┐"
+          - "│ CREDENTIALS & CONFIGURATION                                                  │"
+          - "└──────────────────────────────────────────────────────────────────────────────┘"
+          - "  Target Machine: {{ credentials_dir }}/elk-credentials.txt"
+          - "  Control Machine: ./elk-credentials-{{ inventory_hostname }}.txt"
+          - ""
+          - "┌──────────────────────────────────────────────────────────────────────────────┐"
+          - "│ QUICK START                                                                  │"
+          - "└──────────────────────────────────────────────────────────────────────────────┘"
+          - "  1. Open your browser: http://localhost:{{ kibana_port }}"
+          - "  2. Use the enrollment token from credentials file"
+          - "  3. Login with: elastic / [password from credentials file]"
+          - "  4. Configure Logstash pipelines in /etc/logstash/conf.d/"
+          - "  5. Create visualizations and dashboards"
+          - ""
+          - "┌──────────────────────────────────────────────────────────────────────────────┐"
+          - "│ VERIFICATION COMMANDS                                                        │"
+          - "└──────────────────────────────────────────────────────────────────────────────┘"
+          - "  Check services:  sudo systemctl status elasticsearch kibana logstash"
+          - "  View ES logs:    sudo journalctl -u elasticsearch -f"
+          - "  Test ES:         curl -k https://localhost:{{ elasticsearch_port }}"
+          - "  Test Kibana:     curl http://localhost:{{ kibana_port }}/api/status"
+          - ""
+          - "════════════════════════════════════════════════════════════════════════════════"
+          - "  All services are systemd-enabled and will auto-start on system boot"
+          - "════════════════════════════════════════════════════════════════════════════════"
+          - ""
+      tags: always

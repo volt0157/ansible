@@ -1,0 +1,122 @@
+---
+# Credentials Management Role
+# Saves and retrieves ELK Stack credentials
+
+- name: Generate comprehensive credentials file
+  copy:
+    content: |
+      ╔══════════════════════════════════════════════════════════════════════════════╗
+      ║                         ELK STACK CREDENTIALS                                ║
+      ╚══════════════════════════════════════════════════════════════════════════════╝
+
+      Generated: {{ ansible_date_time.iso8601 }}
+      Host: {{ inventory_hostname }}
+      Ansible User: {{ ansible_user_id }}
+
+      ┌──────────────────────────────────────────────────────────────────────────────┐
+      │ ELASTICSEARCH                                                                │
+      └──────────────────────────────────────────────────────────────────────────────┘
+      Username: elastic
+      Password: {{ elasticsearch_password | default('CHECK /var/log/elasticsearch/elasticsearch.log') }}
+      URL: https://localhost:{{ elasticsearch_port }}
+
+      Connection Test:
+        curl -k -u elastic:YOUR_PASSWORD https://localhost:{{ elasticsearch_port }}
+
+      ┌──────────────────────────────────────────────────────────────────────────────┐
+      │ KIBANA                                                                       │
+      └──────────────────────────────────────────────────────────────────────────────┘
+      URL: http://localhost:{{ kibana_port }}
+
+      Enrollment Token:
+      {{ kibana_token | default('Token generation failed - Elasticsearch may not be ready') }}
+
+      Setup Instructions:
+        1. Open browser: http://localhost:{{ kibana_port }}
+        2. Paste enrollment token above
+        3. Login with Elasticsearch credentials (elastic / password)
+
+      ┌──────────────────────────────────────────────────────────────────────────────┐
+      │ LOGSTASH                                                                     │
+      └──────────────────────────────────────────────────────────────────────────────┘
+      Status: Running (awaiting pipeline configuration)
+      Config Directory: /etc/logstash/conf.d/
+
+      Pipeline Configuration:
+        - Create .conf files in /etc/logstash/conf.d/
+        - Restart service: sudo systemctl restart logstash
+
+      ┌──────────────────────────────────────────────────────────────────────────────┐
+      │ SERVICE MANAGEMENT                                                           │
+      └──────────────────────────────────────────────────────────────────────────────┘
+      Check Status:
+        sudo systemctl status elasticsearch
+        sudo systemctl status kibana
+        sudo systemctl status logstash
+
+      View Logs:
+        sudo journalctl -u elasticsearch -f
+        sudo journalctl -u kibana -f
+        sudo journalctl -u logstash -f
+
+      Restart Services:
+        sudo systemctl restart elasticsearch
+        sudo systemctl restart kibana
+        sudo systemctl restart logstash
+
+      ┌──────────────────────────────────────────────────────────────────────────────┐
+      │ TROUBLESHOOTING                                                              │
+      └──────────────────────────────────────────────────────────────────────────────┘
+      Elasticsearch Logs:
+        /var/log/elasticsearch/elasticsearch.log
+
+      Verify Elasticsearch:
+        curl -k https://localhost:{{ elasticsearch_port }}
+
+      Verify Kibana:
+        curl http://localhost:{{ kibana_port }}/api/status
+
+      Check Java Version:
+        java -version
+
+      ┌──────────────────────────────────────────────────────────────────────────────┐
+      │ NEXT STEPS                                                                   │
+      └──────────────────────────────────────────────────────────────────────────────┘
+      1. Access Kibana web interface at http://localhost:{{ kibana_port }}
+      2. Complete Kibana enrollment using the token above
+      3. Configure Logstash pipelines for your data sources
+      4. Integrate Zeek logs for network security monitoring
+      5. Create dashboards and visualizations in Kibana
+      6. Set up index patterns for your data
+      7. Configure alerting and monitoring
+
+      ════════════════════════════════════════════════════════════════════════════════
+      SECURITY NOTICE: This file contains sensitive credentials.
+      Keep it secure and restrict access permissions.
+      ════════════════════════════════════════════════════════════════════════════════
+    dest: "{{ credentials_dir }}/elk-credentials.txt"
+    mode: '0600'
+    owner: root
+    group: root
+  no_log: false
+  tags:
+    - credentials
+    - documentation
+
+- name: Fetch credentials to Ansible controller
+  fetch:
+    src: "{{ credentials_dir }}/elk-credentials.txt"
+    dest: "./elk-credentials-{{ inventory_hostname }}.txt"
+    flat: yes
+  tags:
+    - credentials
+    - fetch
+
+- name: Display credentials file location
+  debug:
+    msg:
+      - "Credentials saved successfully!"
+      - "Target machine: {{ credentials_dir }}/elk-credentials.txt"
+      - "Control machine: ./elk-credentials-{{ inventory_hostname }}.txt"
+  tags:
+    - credentials

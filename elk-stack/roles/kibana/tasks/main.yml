@@ -1,0 +1,79 @@
+---
+# Kibana Installation and Configuration Role
+# Based on tested installation: ELK_INSTALLATION_LOG.md Steps 6-8
+
+- name: Create Kibana repository configuration
+  copy:
+    content: |
+      [kibana-8.x]
+      name=Kibana repository for 8.x packages
+      baseurl={{ elastic_repo_baseurl }}
+      gpgcheck=1
+      gpgkey={{ gpg_key_url }}
+      enabled=1
+      autorefresh=1
+      type=rpm-md
+    dest: /etc/yum.repos.d/kibana.repo
+    mode: '0644'
+  tags:
+    - kibana
+    - repository
+
+- name: Install Kibana
+  dnf:
+    name: kibana
+    state: present
+  register: kibana_install
+  notify: restart kibana
+  tags:
+    - kibana
+    - packages
+
+- name: Enable and start Kibana service
+  systemd:
+    name: kibana
+    enabled: yes
+    state: started
+  register: kibana_start
+  tags:
+    - kibana
+    - services
+
+- name: Wait for Kibana to be ready
+  uri:
+    url: "http://localhost:{{ kibana_port }}/api/status"
+    method: GET
+    status_code: 200
+  retries: 20
+  delay: 3
+  register: kibana_health
+  until: kibana_health.status == 200
+  ignore_errors: yes
+  tags:
+    - kibana
+    - health-check
+
+- name: Generate Kibana enrollment token
+  shell: |
+    /usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s kibana
+  register: kibana_enrollment_token
+  changed_when: false
+  no_log: true
+  environment:
+    ES_HOME: /usr/share/elasticsearch
+  when: es_health.status == 200
+  ignore_errors: yes
+  tags:
+    - kibana
+    - enrollment
+
+- name: Set Kibana enrollment token as fact
+  set_fact:
+    kibana_token: "{{ kibana_enrollment_token.stdout }}"
+  no_log: true
+  when:
+    - kibana_enrollment_token.stdout is defined
+    - kibana_enrollment_token.stdout | length > 0
+  tags:
+    - kibana
+    - enrollment
