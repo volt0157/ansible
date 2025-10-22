@@ -18,18 +18,15 @@
 
 - name: Install Zeek network security monitor
   ansible.builtin.dnf:
-    name:
-      - zeek
-      - zeek-core
+    name: zeek
     state: present
   register: zeek_install_result
 
 - name: Display Zeek installation status
   ansible.builtin.debug:
     msg:
-      - "Zeek (Network Security Monitor) has been installed:"
-      - "  - zeek: Network analysis framework"
-      - "  - zeek-core: Core Zeek components"
+      - "Zeek (Network Security Monitor) has been installed"
+      - "Zeek is a powerful network analysis framework"
 
 - name: Check if /opt/zeek exists (common Zeek installation path)
   ansible.builtin.stat:
