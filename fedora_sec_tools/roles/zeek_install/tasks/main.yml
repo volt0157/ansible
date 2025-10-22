@@ -1,6 +1,6 @@
 ---
 - name: Check if Zeek is already installed
-  ansible.builtin.command: rpm -q zeek
+  ansible.builtin.command: rpm -q zeek-core
   register: zeek_check
   failed_when: false
   changed_when: false
@@ -18,7 +18,9 @@
 
 - name: Install Zeek network security monitor
   ansible.builtin.dnf:
-    name: zeek
+    name:
+      - zeek-core
+      - zeekctl
     state: present
   register: zeek_install_result
 
@@ -26,7 +28,8 @@
   ansible.builtin.debug:
     msg:
       - "Zeek (Network Security Monitor) has been installed"
-      - "Zeek is a powerful network analysis framework"
+      - "  - zeek-core: Core Zeek network analysis framework"
+      - "  - zeekctl: Zeek control and management interface"
 
 - name: Check if /opt/zeek exists (common Zeek installation path)
   ansible.builtin.stat:
