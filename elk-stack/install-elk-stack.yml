@@ -1,0 +1,226 @@
+---
+- name: Install and configure ELK Stack on Fedora
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  vars:
+    elastic_version: "8.19.5"
+    elasticsearch_port: 9200
+    kibana_port: 5601
+    logstash_port: 5000
+    credentials_dir: "/var/elk-credentials"
+
+  pre_tasks:
+    - name: Create credentials directory
+      file:
+        path: "{{ credentials_dir }}"
+        state: directory
+        mode: '0700'
+
+  tasks:
+
+    - name: "Step 1: Install Java 21 (OpenJDK)"
+      dnf:
+        name:
+          - java-21-openjdk
+          - java-21-openjdk-devel
+        state: present
+      register: java_install
+
+    - name: Verify Java installation
+      command: java -version
+      changed_when: false
+      register: java_version
+      failed_when: java_version.rc != 0
+
+    - name: "Step 2: Import Elasticsearch GPG key"
+      rpm_key:
+        key: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+        state: present
+
+    - name: "Step 3: Create Elasticsearch repository"
+      copy:
+        content: |
+          [elastic-8.x]
+          name=Elastic repository for 8.x packages
+          baseurl=https://artifacts.elastic.co/packages/8.x/yum
+          gpgcheck=1
+          gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
+          enabled=1
+          autorefresh=1
+          type=rpm-md
+        dest: /etc/yum.repos.d/elasticsearch.repo
+
+    - name: "Step 4: Install Elasticsearch"
+      dnf:
+        name: elasticsearch
+        state: present
+      register: es_install
+
+    - name: Capture Elasticsearch installation output for password
+      shell: |
+        set -o pipefail
+        grep -i "generated password" /var/log/elasticsearch/elasticsearch.log 2>/dev/null | \
+        tail -1 | \
+        sed 's/.*generated password for the elastic built-in superuser is : //' | \
+        awk '{print $1}' || echo "PASSWORD_NOT_FOUND"
+      register: es_password_capture
+      changed_when: false
+      when: es_install.changed
+
+    - name: Set Elasticsearch password variable
+      set_fact:
+        elasticsearch_password: "{{ es_password_capture.stdout }}"
+      when: es_password_capture.stdout != "PASSWORD_NOT_FOUND"
+
+    - name: Display captured password status
+      debug:
+        msg: "Elasticsearch password captured: {{ elasticsearch_password | default('MANUAL CAPTURE REQUIRED') }}"
+
+    - name: "Step 5: Reload systemd daemon"
+      systemd:
+        daemon_reload: yes
+
+    - name: "Step 5: Enable and start Elasticsearch"
+      systemd:
+        name: elasticsearch
+        enabled: yes
+        state: started
+      register: es_start
+
+    - name: Wait for Elasticsearch to be ready (with retries)
+      uri:
+        url: "https://localhost:{{ elasticsearch_port }}"
+        method: GET
+        user: elastic
+        password: "{{ elasticsearch_password | default(lookup('env', 'ES_PASSWORD')) }}"
+        validate_certs: no
+        status_code: 200
+      retries: 15
+      delay: 4
+      until: result.status == 200
+      register: es_health
+      ignore_errors: yes
+
+    - name: "Step 6: Create Kibana repository"
+      copy:
+        content: |
+          [kibana-8.x]
+          name=Kibana repository for 8.x packages
+          baseurl=https://artifacts.elastic.co/packages/8.x/yum
+          gpgcheck=1
+          gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
+          enabled=1
+          autorefresh=1
+          type=rpm-md
+        dest: /etc/yum.repos.d/kibana.repo
+
+    - name: "Step 7: Install Kibana"
+      dnf:
+        name: kibana
+        state: present
+
+    - name: "Step 8: Enable and start Kibana"
+      systemd:
+        name: kibana
+        enabled: yes
+        state: started
+
+    - name: Wait for Kibana to be ready
+      uri:
+        url: "http://localhost:{{ kibana_port }}/api/status"
+        method: GET
+        status_code: 200
+      retries: 20
+      delay: 3
+      until: result.status == 200
+      register: kibana_health
+      ignore_errors: yes
+
+    - name: "Step 9: Create Logstash repository"
+      copy:
+        content: |
+          [logstash-8.x]
+          name=Elastic repository for 8.x packages
+          baseurl=https://artifacts.elastic.co/packages/8.x/yum
+          gpgcheck=1
+          gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
+          enabled=1
+          autorefresh=1
+          type=rpm-md
+        dest: /etc/yum.repos.d/logstash.repo
+
+    - name: "Step 10: Install Logstash"
+      dnf:
+        name: logstash
+        state: present
+
+    - name: "Step 11: Enable and start Logstash"
+      systemd:
+        name: logstash
+        enabled: yes
+        state: started
+
+    - name: Generate Kibana enrollment token
+      shell: |
+        /usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s kibana
+      register: kibana_enrollment_token
+      changed_when: false
+      environment:
+        ES_HOME: /usr/share/elasticsearch
+      when: es_health.status == 200
+
+    - name: Save credentials to target machine
+      copy:
+        content: |
+          ELK Stack Credentials
+          =====================
+          Generated: {{ ansible_date_time.iso8601 }}
+          Host: {{ inventory_hostname }}
+
+          ELASTICSEARCH
+          Username: elastic
+          Password: {{ elasticsearch_password | default('CHECK ELASTICSEARCH LOGS - /var/log/elasticsearch/elasticsearch.log') }}
+          URL: https://localhost:{{ elasticsearch_port }}
+
+          KIBANA
+          URL: http://localhost:{{ kibana_port }}
+          Enrollment Token: {{ kibana_enrollment_token.stdout | default('Token generation failed - check Elasticsearch status') }}
+
+          LOGSTASH
+          Status: Running (awaiting pipeline configuration)
+          Config directory: /etc/logstash/conf.d/
+        dest: "{{ credentials_dir }}/elk-credentials.txt"
+        mode: '0600'
+
+    - name: Fetch credentials to control machine
+      fetch:
+        src: "{{ credentials_dir }}/elk-credentials.txt"
+        dest: "./elk-credentials-{{ inventory_hostname }}.txt"
+        flat: yes
+
+    - name: Display installation summary
+      debug:
+        msg: |
+          ╔══════════════════════════════════════════════════════════════╗
+          ║           ELK Stack Installation Complete!                  ║
+          ╠══════════════════════════════════════════════════════════════╣
+          ║ Elasticsearch: https://localhost:{{ elasticsearch_port }}           ║
+          ║ Kibana:       http://localhost:{{ kibana_port }}                   ║
+          ║ Logstash:     Running (awaiting pipeline configuration)    ║
+          ║                                                              ║
+          ║ All ELK components are systemd-enabled and auto-start       ║
+          ║                                                              ║
+          ║ Credentials saved to:                                       ║
+          ║   - Target machine: {{ credentials_dir }}/elk-credentials.txt    ║
+          ║   - Local machine: ./elk-credentials-{{ inventory_hostname }}.txt ║
+          ║                                                              ║
+          ║ Next steps:                                                 ║
+          ║   1. Access Kibana at http://localhost:5601                ║
+          ║   2. Use enrollment token to complete Kibana setup         ║
+          ║   3. Log in with: elastic / {{ elasticsearch_password | default('PASSWORD_SHOWN_IN_LOGS') }} ║
+          ║   4. Configure Logstash pipelines in /etc/logstash/conf.d/ ║
+          ║   5. Integrate Zeek logs for network analysis              ║
+          ╚══════════════════════════════════════════════════════════════╝
+
