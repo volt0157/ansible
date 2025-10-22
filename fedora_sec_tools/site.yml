@@ -1,7 +1,9 @@
 ---
-- name: Install Lynis Security Auditing Tool
+- name: Install and Configure Security Tools for Fedora
   hosts: fedora_servers
   become: yes
 
   roles:
     - lynis_install
+    - firewall_tools
+    - clamav_install

@@ -1,0 +1,64 @@
+---
+- name: Check if ClamAV is already installed
+  ansible.builtin.command: rpm -q clamav
+  register: clamav_check
+  failed_when: false
+  changed_when: false
+
+- name: Set fact for ClamAV installation status
+  ansible.builtin.set_fact:
+    clamav_was_installed: "{{ clamav_check.rc == 0 }}"
+
+- name: Install EPEL repository (required for ClamAV on RHEL-based systems)
+  ansible.builtin.dnf:
+    name: epel-release
+    state: present
+  when: ansible_distribution in ['RedHat', 'CentOS', 'Rocky', 'AlmaLinux']
+  ignore_errors: yes
+
+- name: Install ClamAV and related packages
+  ansible.builtin.dnf:
+    name:
+      - clamav
+      - clamav-update
+      - clamtk
+    state: present
+  register: clamav_install_result
+
+- name: Display ClamAV installation status
+  ansible.builtin.debug:
+    msg:
+      - "ClamAV packages installed:"
+      - "  - clamav: antivirus engine"
+      - "  - clamav-update: virus definition updater"
+      - "  - clamtk: GUI interface for ClamAV"
+
+- name: Run freshclam to update virus definitions (only if ClamAV was not previously installed)
+  ansible.builtin.command: freshclam
+  when: not clamav_was_installed
+  register: freshclam_result
+  ignore_errors: yes
+
+- name: Display freshclam update status
+  ansible.builtin.debug:
+    msg: "Virus definitions updated successfully with freshclam"
+  when: not clamav_was_installed and freshclam_result is succeeded
+
+- name: Enable clamav-freshclam service for automatic updates
+  ansible.builtin.systemd:
+    name: clamav-freshclam
+    enabled: yes
+    state: started
+
+- name: Get ClamAV version
+  ansible.builtin.command: clamscan --version
+  register: clamav_version
+  changed_when: false
+
+- name: Display ClamAV configuration summary
+  ansible.builtin.debug:
+    msg:
+      - "{{ clamav_version.stdout }}"
+      - "ClamAV freshclam service: enabled and started"
+      - "Virus definitions will be updated automatically"
+      - "Use 'clamscan' for command-line scanning or 'clamtk' for GUI"
