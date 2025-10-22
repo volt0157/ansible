@@ -1,0 +1,47 @@
+---
+- name: Ensure EPEL repository is enabled (for RHEL-based systems)
+  ansible.builtin.dnf:
+    name: epel-release
+    state: present
+  when: ansible_distribution in ['RedHat', 'CentOS', 'Rocky', 'AlmaLinux']
+  ignore_errors: yes
+
+- name: Install Lynis security auditing tool
+  ansible.builtin.dnf:
+    name: lynis
+    state: present
+  register: lynis_install_result
+
+- name: Display Lynis installation status
+  ansible.builtin.debug:
+    msg: "Lynis has been successfully installed"
+  when: lynis_install_result is changed
+
+- name: Get Lynis version
+  ansible.builtin.command: lynis show version
+  register: lynis_version
+  changed_when: false
+
+- name: Display Lynis version
+  ansible.builtin.debug:
+    var: lynis_version.stdout_lines
+
+- name: Create Lynis log directory
+  ansible.builtin.file:
+    path: /var/log/lynis
+    state: directory
+    mode: '0755'
+
+- name: Run Lynis security audit (optional)
+  ansible.builtin.command: lynis audit system --quick
+  register: lynis_audit
+  when: run_lynis_audit | default(false) | bool
+  changed_when: false
+
+- name: Display audit summary
+  ansible.builtin.debug:
+    msg:
+      - "Lynis audit completed!"
+      - "Check /var/log/lynis/lynis.log for detailed results"
+      - "Run 'lynis show report' to view the full audit report"
+  when: run_lynis_audit | default(false) | bool

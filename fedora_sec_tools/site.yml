@@ -1,0 +1,7 @@
+---
+- name: Install Lynis Security Auditing Tool
+  hosts: fedora_servers
+  become: yes
+
+  roles:
+    - lynis_install

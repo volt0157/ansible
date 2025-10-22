@@ -1,0 +1,11 @@
+---
+all:
+  children:
+    fedora_servers:
+      hosts:
+        localhost:
+          ansible_connection: local
+        # Add your Fedora servers here
+        # example_server:
+        #   ansible_host: 192.168.1.100
+        #   ansible_user: your_user
