@@ -1,0 +1,40 @@
+---
+- name: Install firewalld package
+  ansible.builtin.dnf:
+    name: firewalld
+    state: present
+  register: firewalld_install_result
+
+- name: Install firewall-config (GUI tool)
+  ansible.builtin.dnf:
+    name: firewall-config
+    state: present
+  register: firewall_config_install_result
+
+- name: Enable and start firewalld service
+  ansible.builtin.systemd:
+    name: firewalld
+    enabled: yes
+    state: started
+
+- name: Get firewalld status
+  ansible.builtin.command: firewall-cmd --state
+  register: firewalld_status
+  changed_when: false
+
+- name: Display firewalld installation status
+  ansible.builtin.debug:
+    msg:
+      - "Firewalld installation complete!"
+      - "firewall-cmd: installed (command-line tool)"
+      - "firewall-config: installed (GUI tool)"
+      - "Service status: {{ firewalld_status.stdout }}"
+
+- name: Get current firewall zones
+  ansible.builtin.command: firewall-cmd --get-active-zones
+  register: firewall_zones
+  changed_when: false
+
+- name: Display active firewall zones
+  ansible.builtin.debug:
+    msg: "Active zones: {{ firewall_zones.stdout_lines }}"
