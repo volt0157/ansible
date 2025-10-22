@@ -1,0 +1,79 @@
+---
+- name: Check if Zeek is already installed
+  ansible.builtin.command: rpm -q zeek
+  register: zeek_check
+  failed_when: false
+  changed_when: false
+
+- name: Set fact for Zeek installation status
+  ansible.builtin.set_fact:
+    zeek_was_installed: "{{ zeek_check.rc == 0 }}"
+
+- name: Install EPEL repository (required for Zeek on RHEL-based systems)
+  ansible.builtin.dnf:
+    name: epel-release
+    state: present
+  when: ansible_distribution in ['RedHat', 'CentOS', 'Rocky', 'AlmaLinux']
+  ignore_errors: yes
+
+- name: Install Zeek network security monitor
+  ansible.builtin.dnf:
+    name:
+      - zeek
+      - zeek-core
+    state: present
+  register: zeek_install_result
+
+- name: Display Zeek installation status
+  ansible.builtin.debug:
+    msg:
+      - "Zeek (Network Security Monitor) has been installed:"
+      - "  - zeek: Network analysis framework"
+      - "  - zeek-core: Core Zeek components"
+
+- name: Check if /opt/zeek exists (common Zeek installation path)
+  ansible.builtin.stat:
+    path: /opt/zeek
+  register: zeek_opt_path
+
+- name: Check if /usr/bin/zeek exists
+  ansible.builtin.stat:
+    path: /usr/bin/zeek
+  register: zeek_usr_path
+
+- name: Set Zeek binary path
+  ansible.builtin.set_fact:
+    zeek_bin_path: "{{ '/opt/zeek/bin/zeek' if zeek_opt_path.stat.exists else '/usr/bin/zeek' if zeek_usr_path.stat.exists else 'zeek' }}"
+
+- name: Get Zeek version
+  ansible.builtin.command: "{{ zeek_bin_path }} --version"
+  register: zeek_version
+  changed_when: false
+  ignore_errors: yes
+
+- name: Create Zeek logs directory
+  ansible.builtin.file:
+    path: /var/log/zeek
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Display Zeek configuration summary
+  ansible.builtin.debug:
+    msg:
+      - "{{ zeek_version.stdout if zeek_version is succeeded else 'Zeek installed' }}"
+      - "Zeek binary path: {{ zeek_bin_path }}"
+      - "Logs directory: /var/log/zeek"
+      - "Configuration: /etc/zeek/ or /opt/zeek/etc/"
+      - "To start monitoring: zeekctl deploy (after configuring network interfaces)"
+      - "Documentation: https://docs.zeek.org/"
+
+- name: Display Zeek quick start info
+  ansible.builtin.debug:
+    msg:
+      - "Next steps to configure Zeek:"
+      - "  1. Edit network interface in /etc/zeek/node.cfg or /opt/zeek/etc/node.cfg"
+      - "  2. Run 'zeekctl deploy' to start monitoring"
+      - "  3. Use 'zeekctl status' to check Zeek processes"
+      - "  4. View logs in /var/log/zeek or /opt/zeek/logs/"
