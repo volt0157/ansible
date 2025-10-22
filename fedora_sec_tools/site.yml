@@ -7,4 +7,3 @@
     - lynis_install
     - firewall_tools
     - clamav_install
-    - zeek_install
