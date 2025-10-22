@@ -1,0 +1,114 @@
+---
+# Elasticsearch Installation and Configuration Role
+# Based on tested installation: ELK_INSTALLATION_LOG.md Steps 2-5
+
+- name: Import Elasticsearch GPG key
+  rpm_key:
+    key: "{{ gpg_key_url }}"
+    state: present
+  tags:
+    - elasticsearch
+    - repository
+
+- name: Create Elasticsearch repository configuration
+  copy:
+    content: |
+      [elastic-8.x]
+      name=Elastic repository for 8.x packages
+      baseurl={{ elastic_repo_baseurl }}
+      gpgcheck=1
+      gpgkey={{ gpg_key_url }}
+      enabled=1
+      autorefresh=1
+      type=rpm-md
+    dest: /etc/yum.repos.d/elasticsearch.repo
+    mode: '0644'
+  tags:
+    - elasticsearch
+    - repository
+
+- name: Install Elasticsearch
+  dnf:
+    name: elasticsearch
+    state: present
+  register: es_install
+  notify: restart elasticsearch
+  tags:
+    - elasticsearch
+    - packages
+
+- name: Reload systemd daemon
+  systemd:
+    daemon_reload: yes
+  tags:
+    - elasticsearch
+    - services
+
+- name: Enable and start Elasticsearch service
+  systemd:
+    name: elasticsearch
+    enabled: yes
+    state: started
+  register: es_start
+  tags:
+    - elasticsearch
+    - services
+
+- name: Wait for Elasticsearch to initialize (give time for password generation)
+  pause:
+    seconds: 10
+  when: es_install.changed
+  tags:
+    - elasticsearch
+
+- name: Capture Elasticsearch auto-generated password from logs
+  shell: |
+    set -o pipefail
+    grep -i "generated password" /var/log/elasticsearch/elasticsearch.log 2>/dev/null | \
+    tail -1 | \
+    sed 's/.*generated password for the elastic built-in superuser is : //' | \
+    awk '{print $1}' || echo "PASSWORD_NOT_FOUND"
+  register: es_password_capture
+  changed_when: false
+  no_log: true
+  when: es_install.changed
+  tags:
+    - elasticsearch
+    - credentials
+
+- name: Set Elasticsearch password as fact
+  set_fact:
+    elasticsearch_password: "{{ es_password_capture.stdout }}"
+  no_log: true
+  when:
+    - es_install.changed
+    - es_password_capture.stdout is defined
+    - es_password_capture.stdout != "PASSWORD_NOT_FOUND"
+  tags:
+    - elasticsearch
+    - credentials
+
+- name: Display password capture status
+  debug:
+    msg: "Elasticsearch password {{ 'captured successfully' if elasticsearch_password is defined else 'not found - check /var/log/elasticsearch/elasticsearch.log manually' }}"
+  tags:
+    - elasticsearch
+    - credentials
+
+- name: Wait for Elasticsearch to be ready
+  uri:
+    url: "https://localhost:{{ elasticsearch_port }}"
+    method: GET
+    user: elastic
+    password: "{{ elasticsearch_password | default(lookup('env', 'ES_PASSWORD')) }}"
+    validate_certs: no
+    status_code: 200
+  retries: 15
+  delay: 4
+  register: es_health
+  until: es_health.status == 200
+  ignore_errors: yes
+  when: elasticsearch_password is defined
+  tags:
+    - elasticsearch
+    - health-check

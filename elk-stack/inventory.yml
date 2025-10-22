@@ -1,0 +1,23 @@
+---
+all:
+  children:
+    elk_servers:
+      hosts:
+        localhost:
+          ansible_connection: local
+          ansible_python_interpreter: /usr/bin/python3
+      vars:
+        # ELK Version
+        elastic_version: "8.19.5"
+
+        # Service Ports
+        elasticsearch_port: 9200
+        kibana_port: 5601
+        logstash_port: 5000
+
+        # Directories
+        credentials_dir: "/var/elk-credentials"
+
+        # Elastic Repository Configuration
+        gpg_key_url: "https://artifacts.elastic.co/GPG-KEY-elasticsearch"
+        elastic_repo_baseurl: "https://artifacts.elastic.co/packages/8.x/yum"

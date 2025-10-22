@@ -1,0 +1,54 @@
+---
+# Logstash Installation and Configuration Role
+# Based on tested installation: ELK_INSTALLATION_LOG.md Steps 9-11
+
+- name: Create Logstash repository configuration
+  copy:
+    content: |
+      [logstash-8.x]
+      name=Elastic repository for 8.x packages
+      baseurl={{ elastic_repo_baseurl }}
+      gpgcheck=1
+      gpgkey={{ gpg_key_url }}
+      enabled=1
+      autorefresh=1
+      type=rpm-md
+    dest: /etc/yum.repos.d/logstash.repo
+    mode: '0644'
+  tags:
+    - logstash
+    - repository
+
+- name: Install Logstash
+  dnf:
+    name: logstash
+    state: present
+  register: logstash_install
+  notify: restart logstash
+  tags:
+    - logstash
+    - packages
+
+- name: Enable and start Logstash service
+  systemd:
+    name: logstash
+    enabled: yes
+    state: started
+  register: logstash_start
+  tags:
+    - logstash
+    - services
+
+- name: Verify Logstash service status
+  systemd:
+    name: logstash
+  register: logstash_status
+  tags:
+    - logstash
+    - verify
+
+- name: Display Logstash status
+  debug:
+    msg: "Logstash is {{ logstash_status.status.ActiveState }} - Ready for pipeline configuration in /etc/logstash/conf.d/"
+  tags:
+    - logstash

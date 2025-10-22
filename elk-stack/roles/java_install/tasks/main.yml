@@ -1,0 +1,30 @@
+---
+# Java 21 Installation Role
+# Based on tested installation: ELK_INSTALLATION_LOG.md Step 1
+
+- name: Install Java 21 OpenJDK and development tools
+  dnf:
+    name:
+      - java-21-openjdk
+      - java-21-openjdk-devel
+    state: present
+  register: java_install
+  tags:
+    - java
+    - prerequisites
+
+- name: Verify Java installation
+  command: java -version
+  changed_when: false
+  register: java_version
+  failed_when: java_version.rc != 0
+  tags:
+    - java
+    - verify
+
+- name: Display Java version
+  debug:
+    msg: "Java installed successfully: {{ java_version.stderr_lines[0] }}"
+  when: java_version.stderr_lines is defined
+  tags:
+    - java
