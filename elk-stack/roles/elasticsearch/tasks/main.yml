@@ -54,43 +54,76 @@
     - elasticsearch
     - services
 
-- name: Wait for Elasticsearch to initialize (give time for password generation)
+- name: Wait for Elasticsearch to initialize
   pause:
-    seconds: 10
+    seconds: 20
   when: es_install.changed
   tags:
     - elasticsearch
 
-- name: Capture Elasticsearch auto-generated password from logs
+- name: Check if password was auto-generated in logs
   shell: |
     set -o pipefail
-    grep -i "generated password" /var/log/elasticsearch/elasticsearch.log 2>/dev/null | \
+    grep -i "generated password for the elastic built-in superuser" /var/log/elasticsearch/elasticsearch.log 2>/dev/null | \
     tail -1 | \
-    sed 's/.*generated password for the elastic built-in superuser is : //' | \
+    sed -E 's/.*superuser is : //; s/.*superuser is: //' | \
     awk '{print $1}' || echo "PASSWORD_NOT_FOUND"
-  register: es_password_capture
+  register: es_password_check
   changed_when: false
   no_log: true
-  when: es_install.changed
   tags:
     - elasticsearch
     - credentials
 
-- name: Set Elasticsearch password as fact
-  set_fact:
-    elasticsearch_password: "{{ es_password_capture.stdout }}"
+- name: Reset Elasticsearch password (if not auto-generated)
+  shell: |
+    /usr/share/elasticsearch/bin/elasticsearch-reset-password -u elastic -b
+  register: es_password_reset
+  changed_when: true
   no_log: true
   when:
     - es_install.changed
-    - es_password_capture.stdout is defined
-    - es_password_capture.stdout != "PASSWORD_NOT_FOUND"
+    - es_password_check.stdout == "PASSWORD_NOT_FOUND"
+  tags:
+    - elasticsearch
+    - credentials
+
+- name: Extract password from reset output
+  set_fact:
+    elasticsearch_password: "{{ es_password_reset.stdout | regex_search('New value: (.+)', '\\1') | first }}"
+  no_log: true
+  when:
+    - es_password_reset is defined
+    - es_password_reset.stdout is defined
+    - es_password_reset.stdout | length > 0
+  tags:
+    - elasticsearch
+    - credentials
+
+- name: Use auto-generated password if it exists
+  set_fact:
+    elasticsearch_password: "{{ es_password_check.stdout }}"
+  no_log: true
+  when:
+    - es_password_check.stdout != "PASSWORD_NOT_FOUND"
+    - es_password_check.stdout | length > 0
+  tags:
+    - elasticsearch
+    - credentials
+
+- name: Persist Elasticsearch password across roles
+  set_stats:
+    data:
+      elasticsearch_password: "{{ elasticsearch_password }}"
+  no_log: true
+  when: elasticsearch_password is defined
   tags:
     - elasticsearch
     - credentials
 
 - name: Display password capture status
   debug:
-    msg: "Elasticsearch password {{ 'captured successfully' if elasticsearch_password is defined else 'not found - check /var/log/elasticsearch/elasticsearch.log manually' }}"
+    msg: "Elasticsearch password {{ 'set successfully' if elasticsearch_password is defined else 'FAILED - manual intervention required' }}"
   tags:
     - elasticsearch
     - credentials
@@ -109,6 +142,15 @@
   until: es_health.status == 200
   ignore_errors: yes
   when: elasticsearch_password is defined
+  tags:
+    - elasticsearch
+    - health-check
+
+- name: Persist Elasticsearch health status across roles
+  set_stats:
+    data:
+      es_is_ready: "{{ es_health.status == 200 if es_health.status is defined else false }}"
+  when: es_health is defined
   tags:
     - elasticsearch
     - health-check

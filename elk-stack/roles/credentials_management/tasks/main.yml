@@ -2,6 +2,21 @@
 # Credentials Management Role
 # Saves and retrieves ELK Stack credentials
 
+- name: Check if credentials were captured
+  set_fact:
+    credentials_available: "{{ elasticsearch_password is defined and elasticsearch_password != '' }}"
+  tags:
+    - credentials
+
+- name: Display credential capture status
+  debug:
+    msg:
+      - "Credential Status Check:"
+      - "  Elasticsearch Password: {{ 'Available' if elasticsearch_password is defined else 'NOT AVAILABLE' }}"
+      - "  Kibana Token: {{ 'Available' if kibana_token is defined else 'NOT AVAILABLE' }}"
+  tags:
+    - credentials
+
 - name: Generate comprehensive credentials file
   copy:
     content: |
@@ -17,7 +32,7 @@
       │ ELASTICSEARCH                                                                │
       └──────────────────────────────────────────────────────────────────────────────┘
       Username: elastic
-      Password: {{ elasticsearch_password | default('CHECK /var/log/elasticsearch/elasticsearch.log') }}
+      Password: {{ elasticsearch_password | default('NOT CAPTURED - Run: sudo /usr/share/elasticsearch/bin/elasticsearch-reset-password -u elastic') }}
       URL: https://localhost:{{ elasticsearch_port }}
 
       Connection Test:
@@ -29,7 +44,7 @@
       URL: http://localhost:{{ kibana_port }}
 
       Enrollment Token:
-      {{ kibana_token | default('Token generation failed - Elasticsearch may not be ready') }}
+      {{ kibana_token | default('NOT GENERATED - Run: sudo /usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s kibana') }}
 
       Setup Instructions:
         1. Open browser: http://localhost:{{ kibana_port }}

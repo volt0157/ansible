@@ -39,19 +39,40 @@
     - kibana
     - services
 
+- name: Wait for Kibana to initialize
+  pause:
+    seconds: 15
+  when: kibana_install.changed
+  tags:
+    - kibana
+
 - name: Wait for Kibana to be ready
   uri:
     url: "http://localhost:{{ kibana_port }}/api/status"
     method: GET
     status_code: 200
-  retries: 20
-  delay: 3
+  retries: 30
+  delay: 5
   register: kibana_health
   until: kibana_health.status == 200
   ignore_errors: yes
   tags:
     - kibana
     - health-check
+
+- name: Display Kibana readiness status
+  debug:
+    msg: "Kibana is {{ 'ready' if kibana_health.status == 200 else 'not fully ready (status: ' + (kibana_health.status | string) + ') - continuing anyway' }}"
+  tags:
+    - kibana
+
+- name: Wait before generating enrollment token
+  pause:
+    seconds: 10
+  when: kibana_install.changed
+  tags:
+    - kibana
+    - enrollment
 
 - name: Generate Kibana enrollment token
   shell: |
@@ -61,7 +82,6 @@
   no_log: true
   environment:
     ES_HOME: /usr/share/elasticsearch
-  when: es_health.status == 200
   ignore_errors: yes
   tags:
     - kibana
@@ -72,8 +92,28 @@
     kibana_token: "{{ kibana_enrollment_token.stdout }}"
   no_log: true
   when:
+    - kibana_enrollment_token is defined
+    - kibana_enrollment_token.rc is defined
+    - kibana_enrollment_token.rc == 0
     - kibana_enrollment_token.stdout is defined
     - kibana_enrollment_token.stdout | length > 0
+  tags:
+    - kibana
+    - enrollment
+
+- name: Persist Kibana token across roles
+  set_stats:
+    data:
+      kibana_token: "{{ kibana_token }}"
+  no_log: true
+  when: kibana_token is defined
+  tags:
+    - kibana
+    - enrollment
+
+- name: Display enrollment token status
+  debug:
+    msg: "Kibana enrollment token {{ 'generated successfully' if kibana_token is defined else 'generation failed - may need manual generation' }}"
   tags:
     - kibana
     - enrollment
