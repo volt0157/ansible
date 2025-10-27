@@ -1,0 +1,132 @@
+---
+# ============================================================================
+# npm Configuration Role
+# ============================================================================
+# Purpose: Configure npm global directory and shell PATH
+# Supports: Bash, Zsh, Fish shells
+# ============================================================================
+
+- name: Display npm configuration start
+  debug:
+    msg:
+      - "==============================================="
+      - "Configuring npm"
+      - "==============================================="
+      - "Global directory: {{ npm_global_dir }}"
+      - "==============================================="
+
+- name: Detect user's shell
+  shell: echo $SHELL
+  register: user_shell_detected
+  changed_when: false
+
+- name: Display detected shell
+  debug:
+    msg: "Detected shell: {{ user_shell_detected.stdout }}"
+
+- name: Ensure .npm-global directory exists
+  file:
+    path: "{{ npm_global_dir }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ ansible_env.USER }}"
+
+- name: Configure npm prefix
+  command: npm config set prefix "{{ npm_global_dir }}"
+  register: npm_config_result
+  changed_when: npm_config_result.rc == 0
+
+- name: Display npm prefix configuration
+  debug:
+    msg: "npm prefix configured to: {{ npm_global_dir }}"
+
+# ============================================================================
+# Fish Shell Configuration
+# ============================================================================
+
+- name: Ensure Fish config directory exists
+  file:
+    path: "{{ ansible_env.HOME }}/.config/fish"
+    state: directory
+    mode: '0755'
+    owner: "{{ ansible_env.USER }}"
+  when: "'fish' in user_shell_detected.stdout"
+
+- name: Add PATH to Fish config
+  lineinfile:
+    path: "{{ ansible_env.HOME }}/.config/fish/config.fish"
+    line: "set -gx PATH {{ npm_global_dir }}/bin $PATH"
+    create: yes
+    mode: '0644'
+    state: present
+  when: "'fish' in user_shell_detected.stdout"
+  register: fish_config
+
+- name: Display Fish configuration result
+  debug:
+    msg: "✓ Fish shell configured: {{ ansible_env.HOME }}/.config/fish/config.fish"
+  when: "'fish' in user_shell_detected.stdout"
+
+# ============================================================================
+# Bash Shell Configuration
+# ============================================================================
+
+- name: Add PATH to Bash config
+  lineinfile:
+    path: "{{ ansible_env.HOME }}/.bashrc"
+    line: "export PATH={{ npm_global_dir }}/bin:$PATH"
+    create: yes
+    mode: '0644'
+    state: present
+  when: "'bash' in user_shell_detected.stdout"
+  register: bash_config
+
+- name: Display Bash configuration result
+  debug:
+    msg: "✓ Bash shell configured: {{ ansible_env.HOME }}/.bashrc"
+  when: "'bash' in user_shell_detected.stdout"
+
+# ============================================================================
+# Zsh Shell Configuration
+# ============================================================================
+
+- name: Add PATH to Zsh config
+  lineinfile:
+    path: "{{ ansible_env.HOME }}/.zshrc"
+    line: "export PATH={{ npm_global_dir }}/bin:$PATH"
+    create: yes
+    mode: '0644'
+    state: present
+  when: "'zsh' in user_shell_detected.stdout"
+  register: zsh_config
+
+- name: Display Zsh configuration result
+  debug:
+    msg: "✓ Zsh shell configured: {{ ansible_env.HOME }}/.zshrc"
+  when: "'zsh' in user_shell_detected.stdout"
+
+# ============================================================================
+# Verification
+# ============================================================================
+
+- name: Verify npm configuration
+  command: npm config get prefix
+  register: npm_prefix_check
+  changed_when: false
+
+- name: Display npm configuration summary
+  debug:
+    msg:
+      - ""
+      - "==============================================="
+      - "npm Configuration Complete"
+      - "==============================================="
+      - "npm prefix: {{ npm_prefix_check.stdout }}"
+      - "Shell: {% if 'fish' in user_shell_detected.stdout %}Fish{% elif 'zsh' in user_shell_detected.stdout %}Zsh{% else %}Bash{% endif %}"
+      - "Config file: {% if 'fish' in user_shell_detected.stdout %}~/.config/fish/config.fish{% elif 'zsh' in user_shell_detected.stdout %}~/.zshrc{% else %}~/.bashrc{% endif %}"
+      - "PATH updated: {{ npm_global_dir }}/bin"
+      - "==============================================="
+      - ""
+      - "Note: Run the following to activate changes:"
+      - "{% if 'fish' in user_shell_detected.stdout %}  source ~/.config/fish/config.fish{% elif 'zsh' in user_shell_detected.stdout %}  source ~/.zshrc{% else %}  source ~/.bashrc{% endif %}"
+      - ""

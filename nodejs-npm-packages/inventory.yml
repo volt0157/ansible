@@ -1,0 +1,68 @@
+---
+# ============================================================================
+# Ansible Inventory for Node.js and npm Packages Installation
+# ============================================================================
+# Purpose: Define hosts and variables for Node.js installation
+# Target: localhost (local system)
+# ============================================================================
+
+all:
+  hosts:
+    localhost:
+      ansible_connection: local
+      ansible_python_interpreter: /usr/bin/python3
+
+  vars:
+    # ========================================================================
+    # Node.js Configuration
+    # ========================================================================
+    # Node.js version to install (major version)
+    # Supported versions: 18, 20, 22
+    nodejs_version: "20"
+
+    # ========================================================================
+    # npm Configuration
+    # ========================================================================
+    # Global npm packages installation directory
+    # This directory will be added to PATH in shell configuration
+    npm_global_dir: "{{ ansible_env.HOME }}/.npm-global"
+
+    # ========================================================================
+    # Supported Distributions
+    # ========================================================================
+    # This playbook supports the following RHEL-based distributions:
+    # - Fedora 38 and later
+    # - Red Hat Enterprise Linux (RHEL) 8 and later
+    # - CentOS Stream 8 and later
+    # - Rocky Linux 8 and later
+    # - AlmaLinux 8 and later
+    #
+    # Requirements:
+    # - Minimum 2GB RAM
+    # - DNF package manager
+    # - sudo/root access for system packages
+    # - User account for npm global configuration
+
+    # ========================================================================
+    # Shell Support
+    # ========================================================================
+    # Supported shells for PATH configuration:
+    # - Bash: ~/.bashrc
+    # - Zsh: ~/.zshrc
+    # - Fish: ~/.config/fish/config.fish
+    #
+    # The playbook will automatically detect the current shell and
+    # configure the appropriate configuration file.
+
+    # ========================================================================
+    # npm Packages
+    # ========================================================================
+    # List of global npm packages to install
+    # Currently configured: @google/gemini-cli
+    #
+    # Add additional packages here as needed:
+    # npm_global_packages:
+    #   - "@google/gemini-cli"
+    #   - "typescript"
+    #   - "eslint"
+    #   - "@angular/cli"

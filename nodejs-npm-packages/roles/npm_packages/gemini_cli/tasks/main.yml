@@ -1,0 +1,88 @@
+---
+# ============================================================================
+# Gemini CLI Installation Role
+# ============================================================================
+# Purpose: Install Google's Gemini CLI globally via npm
+# Package: @google/gemini-cli
+# ============================================================================
+
+- name: Display Gemini CLI installation start
+  debug:
+    msg:
+      - "==============================================="
+      - "Installing Gemini CLI"
+      - "==============================================="
+      - "Package: @google/gemini-cli"
+      - "Installation type: Global"
+      - "==============================================="
+
+- name: Install Gemini CLI globally
+  npm:
+    name: "@google/gemini-cli"
+    global: yes
+    state: present
+  environment:
+    npm_config_prefix: "{{ ansible_env.HOME }}/.npm-global"
+  register: gemini_install
+  # Note: npm module may not detect changes accurately for global packages
+  # so we avoid marking this as changed_when: false
+
+- name: Display installation status
+  debug:
+    msg: "Gemini CLI installation: {{ 'Completed' if gemini_install is defined else 'Failed' }}"
+
+- name: Wait for npm global directory to be updated
+  pause:
+    seconds: 2
+  when: gemini_install.changed
+
+- name: Verify Gemini CLI installation with PATH
+  shell: "export PATH={{ ansible_env.HOME }}/.npm-global/bin:$PATH && which gemini"
+  register: gemini_which
+  changed_when: false
+  failed_when: false
+
+- name: Verify Gemini CLI version
+  shell: "export PATH={{ ansible_env.HOME }}/.npm-global/bin:$PATH && gemini --version"
+  register: gemini_version_check
+  changed_when: false
+  failed_when: false
+
+- name: Display installation verification
+  debug:
+    msg:
+      - ""
+      - "==============================================="
+      - "Gemini CLI Installation Complete"
+      - "==============================================="
+      - "Status: {{ 'Installed' if gemini_which.rc == 0 else 'Installation may need verification' }}"
+      - "Location: {{ gemini_which.stdout if gemini_which.rc == 0 else 'Not found in PATH yet' }}"
+      - "Version: {{ gemini_version_check.stdout if gemini_version_check.rc == 0 else 'Run source command to activate' }}"
+      - "==============================================="
+      - ""
+
+- name: Display usage instructions
+  debug:
+    msg:
+      - "───────────────────────────────────────────────"
+      - "Gemini CLI Usage:"
+      - "───────────────────────────────────────────────"
+      - ""
+      - "After reloading your shell, you can use:"
+      - ""
+      - "  gemini --help              # Display help"
+      - "  gemini --version           # Display version"
+      - "  gemini ask 'question'      # Ask a question"
+      - "  gemini config              # Configure API key"
+      - ""
+      - "First time setup:"
+      - "  1. Get API key from: https://aistudio.google.com/app/apikey"
+      - "  2. Run: gemini config"
+      - "  3. Enter your API key when prompted"
+      - ""
+      - "───────────────────────────────────────────────"
+      - ""
+
+- name: Set installation success fact
+  set_fact:
+    gemini_cli_installed: "{{ gemini_which.rc == 0 }}"
