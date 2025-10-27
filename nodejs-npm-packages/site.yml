@@ -43,9 +43,15 @@
       tags: ['always']
 
     - name: Detect user's shell
-      shell: echo $SHELL
-      register: user_shell
-      changed_when: false
+      set_fact:
+        user_shell_path: "{{ ansible_env.SHELL | default('/bin/bash') }}"
+        user_shell_name: "{{ (ansible_env.SHELL | default('/bin/bash')) | basename }}"
+      tags: ['always']
+
+    - name: Set user_shell for compatibility
+      set_fact:
+        user_shell:
+          stdout: "{{ user_shell_path }}"
       tags: ['always']
 
     - name: Display detected shell
@@ -54,8 +60,9 @@
           - "==============================================="
           - "Shell Detection"
           - "==============================================="
-          - "Current shell: {{ user_shell.stdout }}"
-          - "Shell type: {% if 'fish' in user_shell.stdout %}Fish{% elif 'zsh' in user_shell.stdout %}Zsh{% else %}Bash{% endif %}"
+          - "Current shell: {{ user_shell_path }}"
+          - "Shell name: {{ user_shell_name }}"
+          - "Shell type: {% if 'fish' in user_shell_name %}Fish{% elif 'zsh' in user_shell_name %}Zsh{% else %}Bash{% endif %}"
           - "==============================================="
       tags: ['always']
 

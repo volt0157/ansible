@@ -13,6 +13,16 @@
       - "Installing Node.js {{ nodejs_version }}"
       - "==============================================="
 
+- name: Check if Node.js is already installed
+  command: which node
+  register: node_check
+  changed_when: false
+  failed_when: false
+
+- name: Display Node.js pre-installation status
+  debug:
+    msg: "Node.js pre-check: {{ 'Found' if node_check.rc == 0 else 'Not found' }}"
+
 - name: Install Node.js via DNF
   dnf:
     name: "nodejs"
@@ -25,14 +35,41 @@
     msg: "Node.js installation: {{ 'Installed' if nodejs_installation.changed else 'Already installed' }}"
 
 - name: Verify Node.js installation
-  command: node --version
+  shell: |
+    which node
+    node --version
   register: node_version
   changed_when: false
+  failed_when: node_version.rc != 0
+  environment:
+    PATH: "/usr/bin:/usr/local/bin:{{ ansible_env.PATH }}"
+
+- name: Debug Node.js version output
+  debug:
+    msg:
+      - "Node.js command output: {{ node_version.stdout_lines }}"
+      - "Return code: {{ node_version.rc }}"
 
 - name: Verify npm installation
-  command: npm --version
+  shell: |
+    which npm
+    npm --version
   register: npm_version
   changed_when: false
+  failed_when: npm_version.rc != 0
+  environment:
+    PATH: "/usr/bin:/usr/local/bin:{{ ansible_env.PATH }}"
+
+- name: Debug npm version output
+  debug:
+    msg:
+      - "npm command output: {{ npm_version.stdout_lines }}"
+      - "Return code: {{ npm_version.rc }}"
+
+- name: Extract version numbers
+  set_fact:
+    node_version_number: "{{ node_version.stdout_lines | last }}"
+    npm_version_number: "{{ npm_version.stdout_lines | last }}"
 
 - name: Display versions
   debug:
@@ -40,26 +77,30 @@
       - "==============================================="
       - "Node.js installed successfully!"
       - "==============================================="
-      - "Node.js version: {{ node_version.stdout }}"
-      - "npm version: {{ npm_version.stdout }}"
+      - "Node.js version: {{ node_version_number }}"
+      - "npm version: {{ npm_version_number }}"
       - "==============================================="
 
 - name: Extract Node.js major version
   set_fact:
-    nodejs_major_version: "{{ node_version.stdout | regex_replace('^v([0-9]+).*', '\\1') | int }}"
+    nodejs_major_version: "{{ node_version_number | regex_replace('^v([0-9]+).*', '\\1') | int }}"
+  when:
+    - node_version_number is defined
+    - node_version_number | length > 0
 
 - name: Assert minimum Node.js version (18+)
   assert:
     that:
+      - nodejs_major_version is defined
       - nodejs_major_version | int >= 18
-    fail_msg: "Node.js version {{ node_version.stdout }} is too old. Minimum required version is 18+"
-    success_msg: "Node.js version {{ node_version.stdout }} meets minimum requirements (18+)"
+    fail_msg: "Node.js version {{ node_version_number | default('UNKNOWN') }} is too old or not detected. Minimum required version is 18+. Check if Node.js is in PATH."
+    success_msg: "Node.js version {{ node_version_number }} meets minimum requirements (18+)"
 
 - name: Display Node.js installation summary
   debug:
     msg:
       - ""
-      - "✓ Node.js {{ node_version.stdout }} installed successfully"
-      - "✓ npm {{ npm_version.stdout }} installed successfully"
+      - "✓ Node.js {{ node_version_number }} installed successfully"
+      - "✓ npm {{ npm_version_number }} installed successfully"
       - "✓ Version check passed (>= v18)"
       - ""
