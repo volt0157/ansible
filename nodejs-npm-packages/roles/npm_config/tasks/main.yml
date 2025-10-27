@@ -15,14 +15,24 @@
       - "Global directory: {{ npm_global_dir }}"
       - "==============================================="
 
-- name: Detect user's shell
-  shell: echo $SHELL
-  register: user_shell_detected
-  changed_when: false
+- name: Detect user's shell from environment
+  set_fact:
+    user_shell_path: "{{ ansible_env.SHELL | default('/bin/bash') }}"
+
+- name: Extract shell name
+  set_fact:
+    user_shell_name: "{{ user_shell_path | basename }}"
 
 - name: Display detected shell
   debug:
-    msg: "Detected shell: {{ user_shell_detected.stdout }}"
+    msg:
+      - "Detected shell path: {{ user_shell_path }}"
+      - "Detected shell name: {{ user_shell_name }}"
+
+- name: Set shell detection variable for compatibility
+  set_fact:
+    user_shell_detected:
+      stdout: "{{ user_shell_path }}"
 
 - name: Ensure .npm-global directory exists
   file:

@@ -37,10 +37,19 @@
   when: gemini_install.changed
 
 - name: Verify Gemini CLI installation with PATH
-  shell: "export PATH={{ ansible_env.HOME }}/.npm-global/bin:$PATH && which gemini"
+  shell: |
+    export PATH={{ ansible_env.HOME }}/.npm-global/bin:$PATH
+    which gemini
+    ls -la {{ ansible_env.HOME }}/.npm-global/bin/ | grep gemini || true
   register: gemini_which
   changed_when: false
   failed_when: false
+
+- name: Debug Gemini CLI verification
+  debug:
+    msg:
+      - "Gemini which return code: {{ gemini_which.rc }}"
+      - "Gemini which output: {{ gemini_which.stdout_lines }}"
 
 - name: Verify Gemini CLI version
   shell: "export PATH={{ ansible_env.HOME }}/.npm-global/bin:$PATH && gemini --version"
