@@ -1,0 +1,157 @@
+---
+# ============================================================================
+# Node.js and npm Packages Installation Playbook
+# ============================================================================
+# Purpose: Install and configure Node.js with npm on RHEL-based systems
+# Supports: Fedora 38+, RHEL 8+, CentOS Stream 8+, Rocky Linux 8+, AlmaLinux 8+
+# Features: Multi-shell support (Bash, Zsh, Fish), global npm configuration
+# ============================================================================
+
+- name: Install Node.js and npm packages
+  hosts: localhost
+  become: false
+  gather_facts: true
+
+  # ==========================================================================
+  # PRE-TASKS: System verification and preparation
+  # ==========================================================================
+  pre_tasks:
+    - name: Display system information
+      debug:
+        msg:
+          - "==============================================="
+          - "System Information"
+          - "==============================================="
+          - "Operating System: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+          - "Kernel: {{ ansible_kernel }}"
+          - "Architecture: {{ ansible_architecture }}"
+          - "Total RAM: {{ ansible_memtotal_mb }} MB"
+          - "Free RAM: {{ ansible_memfree_mb }} MB"
+          - "Disk Space (root): {{ ansible_mounts | selectattr('mount', 'equalto', '/') | map(attribute='size_available') | first | int / 1024 / 1024 / 1024 | round(2) }} GB available"
+          - "Hostname: {{ ansible_hostname }}"
+          - "User: {{ ansible_env.USER }}"
+          - "==============================================="
+      tags: ['always']
+
+    - name: Assert minimum requirements
+      assert:
+        that:
+          - ansible_memtotal_mb >= 2048
+          - ansible_distribution in ['Fedora', 'RedHat', 'CentOS', 'Rocky', 'AlmaLinux']
+        fail_msg: "System does not meet minimum requirements (2GB RAM, RHEL-based OS)"
+        success_msg: "System meets minimum requirements"
+      tags: ['always']
+
+    - name: Detect user's shell
+      shell: echo $SHELL
+      register: user_shell
+      changed_when: false
+      tags: ['always']
+
+    - name: Display detected shell
+      debug:
+        msg:
+          - "==============================================="
+          - "Shell Detection"
+          - "==============================================="
+          - "Current shell: {{ user_shell.stdout }}"
+          - "Shell type: {% if 'fish' in user_shell.stdout %}Fish{% elif 'zsh' in user_shell.stdout %}Zsh{% else %}Bash{% endif %}"
+          - "==============================================="
+      tags: ['always']
+
+    - name: Create npm-global directory
+      file:
+        path: "{{ ansible_env.HOME }}/.npm-global"
+        state: directory
+        mode: '0755'
+        owner: "{{ ansible_env.USER }}"
+      tags: ['always', 'npm_config']
+
+  # ==========================================================================
+  # ROLES: Main installation and configuration
+  # ==========================================================================
+  roles:
+    - role: nodejs_install
+      tags: ['nodejs']
+
+    - role: npm_config
+      tags: ['npm_config']
+
+    - role: npm_packages/gemini_cli
+      tags: ['gemini_cli', 'npm_packages']
+
+  # ==========================================================================
+  # POST-TASKS: Verification and user guidance
+  # ==========================================================================
+  post_tasks:
+    - name: Verify Node.js installation
+      command: node --version
+      register: node_verify
+      changed_when: false
+      failed_when: false
+      tags: ['verify']
+
+    - name: Verify npm installation
+      command: npm --version
+      register: npm_verify
+      changed_when: false
+      failed_when: false
+      tags: ['verify']
+
+    - name: Verify Gemini CLI installation
+      shell: "export PATH={{ ansible_env.HOME }}/.npm-global/bin:$PATH && which gemini"
+      register: gemini_verify
+      changed_when: false
+      failed_when: false
+      tags: ['verify', 'gemini_cli']
+
+    - name: Display installation summary
+      debug:
+        msg:
+          - ""
+          - "╔═══════════════════════════════════════════════════════════════╗"
+          - "║         Node.js Installation Complete!                       ║"
+          - "╚═══════════════════════════════════════════════════════════════╝"
+          - ""
+          - "✓ Node.js Version: {{ node_verify.stdout if node_verify.rc == 0 else 'Not found' }}"
+          - "✓ npm Version: {{ npm_verify.stdout if npm_verify.rc == 0 else 'Not found' }}"
+          - "✓ Gemini CLI: {{ 'Installed' if gemini_verify.rc == 0 else 'Not found' }}"
+          - "✓ npm Global Directory: {{ ansible_env.HOME }}/.npm-global"
+          - ""
+          - "───────────────────────────────────────────────────────────────"
+          - "Next Steps - Reload Your Shell Configuration:"
+          - "───────────────────────────────────────────────────────────────"
+          - ""
+          - "{% if 'fish' in user_shell.stdout %}Fish Shell:{% elif 'zsh' in user_shell.stdout %}Zsh Shell:{% else %}Bash Shell:{% endif %}"
+          - "{% if 'fish' in user_shell.stdout %}  source ~/.config/fish/config.fish{% elif 'zsh' in user_shell.stdout %}  source ~/.zshrc{% else %}  source ~/.bashrc{% endif %}"
+          - ""
+          - "Or simply open a new terminal window."
+          - ""
+          - "───────────────────────────────────────────────────────────────"
+          - "Verification Commands:"
+          - "───────────────────────────────────────────────────────────────"
+          - ""
+          - "  node --version        # Check Node.js version"
+          - "  npm --version         # Check npm version"
+          - "  gemini --version      # Check Gemini CLI version"
+          - "  which gemini          # Verify Gemini CLI location"
+          - ""
+          - "───────────────────────────────────────────────────────────────"
+          - "Using Gemini CLI:"
+          - "───────────────────────────────────────────────────────────────"
+          - ""
+          - "  gemini --help         # Display help"
+          - "  gemini ask 'question' # Ask a question"
+          - ""
+          - "───────────────────────────────────────────────────────────────"
+          - "Documentation:"
+          - "───────────────────────────────────────────────────────────────"
+          - ""
+          - "  See NODE_INSTALLATION_LOG.md for manual installation reference"
+          - "  See README.md for complete documentation and troubleshooting"
+          - ""
+          - "╔═══════════════════════════════════════════════════════════════╗"
+          - "║  Installation completed successfully! Happy coding! 🚀        ║"
+          - "╚═══════════════════════════════════════════════════════════════╝"
+          - ""
+      tags: ['always']

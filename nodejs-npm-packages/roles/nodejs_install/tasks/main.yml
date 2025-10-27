@@ -1,0 +1,65 @@
+---
+# ============================================================================
+# Node.js Installation Role
+# ============================================================================
+# Purpose: Install Node.js and npm via DNF package manager
+# Requirements: RHEL-based system with DNF
+# ============================================================================
+
+- name: Display Node.js installation start
+  debug:
+    msg:
+      - "==============================================="
+      - "Installing Node.js {{ nodejs_version }}"
+      - "==============================================="
+
+- name: Install Node.js via DNF
+  dnf:
+    name: "nodejs"
+    state: present
+  become: true
+  register: nodejs_installation
+
+- name: Display installation result
+  debug:
+    msg: "Node.js installation: {{ 'Installed' if nodejs_installation.changed else 'Already installed' }}"
+
+- name: Verify Node.js installation
+  command: node --version
+  register: node_version
+  changed_when: false
+
+- name: Verify npm installation
+  command: npm --version
+  register: npm_version
+  changed_when: false
+
+- name: Display versions
+  debug:
+    msg:
+      - "==============================================="
+      - "Node.js installed successfully!"
+      - "==============================================="
+      - "Node.js version: {{ node_version.stdout }}"
+      - "npm version: {{ npm_version.stdout }}"
+      - "==============================================="
+
+- name: Extract Node.js major version
+  set_fact:
+    nodejs_major_version: "{{ node_version.stdout | regex_replace('^v([0-9]+).*', '\\1') | int }}"
+
+- name: Assert minimum Node.js version (18+)
+  assert:
+    that:
+      - nodejs_major_version | int >= 18
+    fail_msg: "Node.js version {{ node_version.stdout }} is too old. Minimum required version is 18+"
+    success_msg: "Node.js version {{ node_version.stdout }} meets minimum requirements (18+)"
+
+- name: Display Node.js installation summary
+  debug:
+    msg:
+      - ""
+      - "✓ Node.js {{ node_version.stdout }} installed successfully"
+      - "✓ npm {{ npm_version.stdout }} installed successfully"
+      - "✓ Version check passed (>= v18)"
+      - ""
